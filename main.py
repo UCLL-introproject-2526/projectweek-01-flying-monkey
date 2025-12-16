@@ -5,6 +5,10 @@ import level2
 
 # Setup
 pygame.init()
+#Een liedje toevoegen
+pygame.mixer.init()
+pygame.mixer.music.load("assets\songMario.mp3")
+
 WIDTH, HEIGHT = 800, 450
 SCREEN = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Mijn Monkey Game Menu")
@@ -26,6 +30,8 @@ def draw_text_centered(text, font, y, color):
 # MENU LOOP
 # ====================
 while True:
+    #play song when game starts
+    pygame.mixer.music.play()
     SCREEN.fill(BG_COLOR)
     
     # Tekst op het scherm
