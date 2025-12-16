@@ -7,11 +7,11 @@ import level2
 pygame.init()
 #Een liedje toevoegen
 pygame.mixer.init()
-pygame.mixer.music.load("assets\songMario.mp3")
 
+pygame.mixer.music.load("assets\songMario.mp3")
 WIDTH, HEIGHT = 800, 450
 SCREEN = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Mijn Monkey Game Menu")
+pygame.display.set_caption("My Monkey Game Menu")
 CLOCK = pygame.time.Clock()
 FONT = pygame.font.SysFont(None, 50)
 SMALL_FONT = pygame.font.SysFont(None, 30)
