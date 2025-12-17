@@ -14,6 +14,11 @@ def speel(SCREEN, pause_func=None):
     except:
         bg_img = None 
 
+    try:
+        platform_original = pygame.image.load("assets/aaagrond.png")
+    except:
+        platform_original = None
+
     original_image = pygame.image.load("assets/monkey.png")
     player_img = pygame.transform.scale(original_image, (40, 50))
 
@@ -151,10 +156,10 @@ def speel(SCREEN, pause_func=None):
             if len(enemies) < 17:
                 if len(enemies) < 4 or random.randint(0, 100) < 2:
                     spawn_x = random.randint(int(camera_x), int(camera_x + WIDTH))
-                    enemies.append(pygame.Rect(spawn_x, -100, 40, 80))
+                    enemies.append(pygame.Rect(spawn_x, -100, 37, 70))
             
             for enemy in enemies[:]:
-                enemy.y += 5
+                enemy.y += 7                        #valsnelheid
                 if player.colliderect(enemy): game_over = True
                 if enemy.y > HEIGHT: enemies.remove(enemy)
 
@@ -164,8 +169,16 @@ def speel(SCREEN, pause_func=None):
             camera_x = target
 
             # Tekenen
+            # Platforms tekenen
             for plat in platforms:
-                pygame.draw.rect(SCREEN, GROUND_COLOR, (plat.x - camera_x, plat.y, plat.width, plat.height))
+                if platform_original:
+                    # We schalen het plaatje naar de breedte/hoogte van DIT specifieke platform
+                    # (want elk platform is anders van grootte)
+                    scaled_plat = pygame.transform.scale(platform_original, (plat.width, plat.height))
+                    SCREEN.blit(scaled_plat, (plat.x - camera_x, plat.y))
+                else:
+                    # Fallback: als plaatje niet geladen is, teken groen blok
+                    pygame.draw.rect(SCREEN, GROUND_COLOR, (plat.x - camera_x, plat.y, plat.width, plat.height))
             
             pygame.draw.rect(SCREEN, GRAY, (flag.x - camera_x, flag.y, flag.width, flag.height))
             pygame.draw.rect(SCREEN, RED, (castle.x - camera_x, castle.y, castle.width, castle.height))
