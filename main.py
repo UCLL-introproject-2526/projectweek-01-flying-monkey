@@ -8,7 +8,7 @@ pygame.init()
 #Een liedje toevoegen
 pygame.mixer.init()
 
-pygame.mixer.music.load("assets\songMario.mp3")
+pygame.mixer.music.load("projectweek-01-flying-monkey//assets//songMario.mp3")
 WIDTH, HEIGHT = 800, 450
 SCREEN = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("My Monkey Game Menu")
