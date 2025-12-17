@@ -176,7 +176,7 @@ def speel(SCREEN, pause_func=None):
         pygame.Rect(800, HEIGHT - 170, 120, 20),
         pygame.Rect(650, HEIGHT - 100, 80, 20),
         pygame.Rect(900, HEIGHT - 250, 100, 20),
-    ]
+    ]        # Meer platforms maken om de spel / level langer te maken
     castle = pygame.Rect(1800, HEIGHT - 200, 120, 150)
     # Make flag a bit wider so it's more visible
     flag = pygame.Rect(1750, HEIGHT - 250, 24, 200)
@@ -185,7 +185,7 @@ def speel(SCREEN, pause_func=None):
         pygame.Rect(660, HEIGHT - 140, 20, 20),
         pygame.Rect(910, HEIGHT - 290, 20, 20),
         pygame.Rect(930, HEIGHT - 290, 20, 20),
-    ]
+    ]        # Mogelijke munten voegen voor een boost
     coins = [c.copy() for c in coins_original]
 
     enemies_def = [
