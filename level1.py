@@ -1,5 +1,6 @@
 import pygame
 import os
+import math
 
 def speel(SCREEN, pause_func=None):
     # ====================
@@ -24,7 +25,8 @@ def speel(SCREEN, pause_func=None):
 
     try:
         monkey_original = pygame.image.load("assets/monkey.png").convert_alpha()
-        player_img = pygame.transform.scale(monkey_original, (50, 60))
+        # make monkey a bit wider
+        player_img = pygame.transform.scale(monkey_original, (60, 60))
     except:
         player_img = None
         print("Kan monkey.png niet vinden.")
@@ -49,14 +51,47 @@ def speel(SCREEN, pause_func=None):
     except:
         print("Kan mushroom.png niet vinden.")
 
-    # Grond/Platform afbeelding
+    # coin image (optional)
+    try:
+        coin_original = pygame.image.load("assets/coin.png").convert_alpha()
+    except Exception:
+        coin_original = None
+
+    # Grond/Platform afbeelding (prefer new ground.jpg, fallback to grond.png)
     grond_img_loaded = False
     try:
-        grond_original = pygame.image.load("assets/grond.png").convert_alpha()
+        try:
+            grond_original = pygame.image.load("assets/ground.jpg").convert_alpha()
+        except Exception:
+            grond_original = pygame.image.load("assets/grond.png").convert_alpha()
         grond_img_loaded = True
     except:
         grond_original = None
-        print("Kan grond.png niet vinden.")
+        print("Kan ground/grond image niet vinden.")
+
+    # ====================
+    # AUDIO (win sound)
+    # ====================
+    win_sound = None
+    try:
+        if not pygame.mixer.get_init():
+            try:
+                pygame.mixer.init()
+            except Exception:
+                pass
+        win_sound_path = os.path.join("assets", "Sounds", "VSE.mp3")
+        if os.path.exists(win_sound_path):
+            try:
+                win_sound = pygame.mixer.Sound(win_sound_path)
+            except Exception:
+                try:
+                    pygame.mixer.music.load(win_sound_path)
+                except Exception:
+                    win_sound = None
+        else:
+            win_sound = None
+    except Exception:
+        win_sound = None
 
     # ====================
     # KLEUREN
@@ -73,7 +108,8 @@ def speel(SCREEN, pause_func=None):
     # ====================
     # GAME VARIABELEN (STATE)
     # ====================
-    player = pygame.Rect(100, HEIGHT - 120, 40, 50)
+    # widen the player's collision rect to match the wider sprite
+    player = pygame.Rect(100, HEIGHT - 100, 60, 60)
     player_vel_y = 0
     speed = 5
     jump_power = -15
@@ -88,19 +124,19 @@ def speel(SCREEN, pause_func=None):
     # flag animation state (plays once when reaching the castle)
     flag_animating = False
     flag_anim_time = 0.0
-    flag_anim_duration = 3.0
+    flag_anim_duration = 4.0
     flag_anim_done = False
     score = 0
     
+    # make the main ground a bit taller (was 50)
     platforms = [
-        pygame.Rect(0, HEIGHT - 50, 2000, 50),
+        pygame.Rect(0, HEIGHT - 70, 2000, 70),
         pygame.Rect(300, HEIGHT - 150, 120, 20),
         pygame.Rect(520, HEIGHT - 220, 120, 20),
         pygame.Rect(800, HEIGHT - 170, 120, 20),
         pygame.Rect(650, HEIGHT - 100, 80, 20),
         pygame.Rect(900, HEIGHT - 250, 100, 20),
     ]
-
     castle = pygame.Rect(1800, HEIGHT - 200, 120, 150)
     # Make flag a bit wider so it's more visible
     flag = pygame.Rect(1750, HEIGHT - 250, 24, 200)
@@ -124,6 +160,19 @@ def speel(SCREEN, pause_func=None):
     for e in enemies_def:
         enemies.append({"rect": e["rect"].copy(), "dir": e["dir"]})
 
+    # Reposition player, enemies and castle so they sit on top of the ground platform
+    try:
+        ground_plat = next((p for p in platforms if p.x == 0 and p.width >= 1000), platforms[0])
+        # place player on ground
+        player.y = ground_plat.top - player.height
+        # place castle on ground
+        castle.y = ground_plat.top - castle.height
+        # align enemies on ground
+        for e in enemies:
+            e['rect'].y = ground_plat.top - e['rect'].height
+    except Exception:
+        pass
+
 
     # ====================
     # INTERNE FUNCTIES
@@ -132,7 +181,13 @@ def speel(SCREEN, pause_func=None):
     def reset_game():
         nonlocal player, player_vel_y, score, coins, enemies, win, on_ground, camera_x, game_over
         nonlocal flag_animating, flag_anim_time, flag_anim_done
-        player.x, player.y = 100, HEIGHT - 120
+        player.x = 100
+        # place player on top of ground platform
+        try:
+            ground_plat = next((p for p in platforms if p.x == 0 and p.width >= 1000), platforms[0])
+            player.y = ground_plat.top - player.height
+        except Exception:
+            player.y = HEIGHT - 120
         player_vel_y = 0
         score = 0
         camera_x = 0
@@ -146,6 +201,14 @@ def speel(SCREEN, pause_func=None):
         enemies = []
         for e in enemies_def:
             enemies.append({"rect": e["rect"].copy(), "dir": e["dir"]})
+        # align enemies and castle on ground after reset
+        try:
+            ground_plat = next((p for p in platforms if p.x == 0 and p.width >= 1000), platforms[0])
+            castle.y = ground_plat.top - castle.height
+            for e in enemies:
+                e['rect'].y = ground_plat.top - e['rect'].height
+        except Exception:
+            pass
 
     def move_player_func(keys):
         nonlocal on_ground, player_vel_y, camera_x
@@ -201,20 +264,27 @@ def speel(SCREEN, pause_func=None):
 
         # === AANGEPASTE PLATFORMS ===
         for plat in platforms:
-            # Skip drawing the large ground platform (visual removed) while keeping other platforms
-            # The original ground spans from x==0 and had a very large width (2000), so we detect
-            # that case and don't draw it. This preserves gameplay/platform collisions but
-            # removes the visible ground.
-            if plat.x == 0 and plat.width >= 1000:
-                continue
             # We definiëren de rechthoek die we gaan tekenen (rekening houdend met camera)
             draw_rect = (plat.x - camera_x, plat.y, plat.width, plat.height)
-            
-            # 1. Teken de binnenkant: gebruik afbeelding indien beschikbaar, anders kleur
+
+            # 1. Teken de binnenkant: gebruik ground image indien beschikbaar, anders kleur
             if grond_img_loaded and grond_original is not None:
                 try:
+                    # scale the ground image to the platform width
                     img = pygame.transform.scale(grond_original, (plat.width, plat.height))
                     SCREEN.blit(img, (plat.x - camera_x, plat.y))
+
+                    # draw a small semi-transparent shadow at the top edge of the ground
+                    try:
+                        shadow_h = min(24, int(plat.height * 0.35))
+                        if shadow_h > 0:
+                            shadow_surf = pygame.Surface((plat.width, shadow_h), pygame.SRCALPHA)
+                            shadow_surf.fill((0, 0, 0, 90))
+                            # place the shadow slightly above the ground top so it blends with background
+                            shadow_y = max(0, plat.y - shadow_h + 4)
+                            SCREEN.blit(shadow_surf, (plat.x - camera_x, shadow_y))
+                    except Exception:
+                        pass
                 except Exception:
                     pygame.draw.rect(SCREEN, GROUND, draw_rect)
             else:
@@ -223,9 +293,27 @@ def speel(SCREEN, pause_func=None):
             # 2. Teken de "Gloeiende" Rode Rand
             # De 4 aan het einde is de dikte van de lijn
 
-        # Coins
+        # Coins (draw coin image if available, otherwise fallback to yellow rect)
         for c in coins:
-            pygame.draw.rect(SCREEN, YELLOW, (c.x - camera_x, c.y, c.width, c.height))
+            if 'coin_original' in locals() and coin_original is not None:
+                try:
+                    # slower, gentle bobbing animation
+                    t = pygame.time.get_ticks() / 1000.0
+                    freq = 0.7  # cycles per second (slower)
+                    amp = 6     # pixels (slightly larger bob)
+                    bob = math.sin(t * 2 * math.pi * freq) * amp
+                    # make coins bigger visually (scale up from rect)
+                    new_w = max(1, int(c.width * 2.5))
+                    new_h = max(1, int(c.height * 2.5))
+                    img = pygame.transform.scale(coin_original, (new_w, new_h))
+                    # center the larger coin on the original coin rect, and apply bob
+                    blit_x = c.x - camera_x - (new_w - c.width) // 2
+                    blit_y = int(c.y + bob - (new_h - c.height))
+                    SCREEN.blit(img, (blit_x, blit_y))
+                except Exception:
+                    pygame.draw.rect(SCREEN, YELLOW, (c.x - camera_x, c.y, c.width, c.height))
+            else:
+                pygame.draw.rect(SCREEN, YELLOW, (c.x - camera_x, c.y, c.width, c.height))
 
         # Flag & Castle (use images if available)
         # Castle (draw slightly bigger but keep world position)
@@ -251,6 +339,17 @@ def speel(SCREEN, pause_func=None):
         flag_draw_x = flag.x - camera_x
         # default end position (world coord)
         flag_end_y = flag.y
+        # draw a persistent pole at the end of the map (visible always)
+        try:
+            pole_w_static = 4
+            # make pole touch the bottom of the screen, and be slightly shorter
+            pole_x_static = flag_draw_x - pole_w_static - 4
+            pole_top_static = (HEIGHT // 3) + 6
+            pole_bottom_static = HEIGHT
+            pole_h_static = pole_bottom_static - pole_top_static
+            pygame.draw.rect(SCREEN, GRAY, (pole_x_static, pole_top_static, pole_w_static, pole_h_static))
+        except Exception:
+            pass
         # Only draw the in-world flag after the animation has completed
         if flag_anim_done and not flag_animating:
             flag_draw_y = flag_end_y
@@ -260,14 +359,34 @@ def speel(SCREEN, pause_func=None):
         if flag_draw_y is not None:
             if 'flag_original' in locals() and flag_original is not None:
                 try:
-                    # scale flag to fit
-                    flag_w = int(flag.width)
-                    flag_h = int(flag.height)
+                    # scale flag to fit (make it wider)
+                    flag_w = int(flag.width * 1.8)
+                    flag_h = int(flag.height * 0.9)
                     flag_img = pygame.transform.scale(flag_original, (flag_w, flag_h))
+                    # draw a gray pole (stick) left of the flag (thinner)
+                    pole_w = 4
+                    pole_x = flag_draw_x - pole_w - 4
+                    try:
+                        pygame.draw.rect(SCREEN, GRAY, (pole_x, int(flag_draw_y), pole_w, flag_h))
+                    except Exception:
+                        pass
                     SCREEN.blit(flag_img, (flag_draw_x, int(flag_draw_y)))
                 except Exception:
+                    # fallback: draw pole + rect
+                    pole_w = 4
+                    pole_x = flag_draw_x - pole_w - 4
+                    try:
+                        pygame.draw.rect(SCREEN, GRAY, (pole_x, int(flag_draw_y), pole_w, flag.height))
+                    except Exception:
+                        pass
                     pygame.draw.rect(SCREEN, GRAY, (flag_draw_x, flag_draw_y, flag.width, flag.height))
             else:
+                pole_w = 4
+                pole_x = flag_draw_x - pole_w - 4
+                try:
+                    pygame.draw.rect(SCREEN, GRAY, (pole_x, int(flag_draw_y), pole_w, flag.height))
+                except Exception:
+                    pass
                 pygame.draw.rect(SCREEN, GRAY, (flag_draw_x, flag_draw_y, flag.width, flag.height))
 
     def draw_enemies_func():
@@ -275,10 +394,21 @@ def speel(SCREEN, pause_func=None):
             draw_x = e["rect"].x - camera_x
             draw_y = e["rect"].y
             if enemy_imgs_loaded:
-                if e["dir"] == -1:
-                    SCREEN.blit(enemy_img_left, (draw_x, draw_y))
-                else:
-                    SCREEN.blit(enemy_img_right, (draw_x, draw_y))
+                try:
+                    # scale enemy image to the enemy rect so the sprite stands on the platform
+                    img = pygame.transform.scale(mushroom_original, (e["rect"].width, e["rect"].height))
+                    if e["dir"] == -1:
+                        blit_y = e["rect"].bottom - img.get_height()
+                        SCREEN.blit(img, (draw_x, blit_y))
+                    else:
+                        img_flipped = pygame.transform.flip(img, True, False)
+                        blit_y = e["rect"].bottom - img_flipped.get_height()
+                        SCREEN.blit(img_flipped, (draw_x, blit_y))
+                except Exception:
+                    if e["dir"] == -1:
+                        SCREEN.blit(enemy_img_left, (draw_x, draw_y))
+                    else:
+                        SCREEN.blit(enemy_img_right, (draw_x, draw_y))
             else:
                 pygame.draw.rect(SCREEN, GREEN, (draw_x, draw_y, e["rect"].width, e["rect"].height))
 
@@ -330,6 +460,18 @@ def speel(SCREEN, pause_func=None):
                 and player.x >= castle.x - 10
                 and player.bottom >= castle.top - 5):
                 win = True
+                # play win sound (Sound preferred, fallback to music)
+                try:
+                    if win_sound:
+                        win_sound.play()
+                    else:
+                        try:
+                            if pygame.mixer.get_init():
+                                pygame.mixer.music.play()
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
                 # start flag animation (plays in-world) if asset exists
                 if flag_original is not None:
                     flag_animating = True
@@ -345,7 +487,12 @@ def speel(SCREEN, pause_func=None):
             draw_enemies_func()
             
             if player_img:
-                SCREEN.blit(player_img, (player.x - camera_x, player.y))
+                try:
+                    img_h = player_img.get_height()
+                    blit_y = player.bottom - img_h
+                    SCREEN.blit(player_img, (player.x - camera_x, blit_y))
+                except Exception:
+                    SCREEN.blit(player_img, (player.x - camera_x, player.y))
             else:
                 pygame.draw.rect(SCREEN, (150, 100, 60), (player.x - camera_x, player.y, player.width, player.height))
 
@@ -376,19 +523,24 @@ def speel(SCREEN, pause_func=None):
                 draw_world_func()
                 draw_enemies_func()
                 if player_img:
-                    SCREEN.blit(player_img, (player.x - camera_x, player.y))
+                    try:
+                        img_h = player_img.get_height()
+                        blit_y = player.bottom - img_h
+                        SCREEN.blit(player_img, (player.x - camera_x, blit_y))
+                    except Exception:
+                        SCREEN.blit(player_img, (player.x - camera_x, player.y))
                 else:
                     pygame.draw.rect(SCREEN, (150, 100, 60), (player.x - camera_x, player.y, player.width, player.height))
                 SCREEN.blit(FONT.render(f"Score: {score}", True, BLACK), (20, 20))
 
                 # Draw the flag as a screen-space overlay to the left of the castle
                 try:
-                    # scale flag to a reasonable size
-                    flag_w = max(16, int(flag.width))
+                    # scale flag to a reasonable size (wider)
+                    flag_w = max(32, int(flag.width * 2))
                     flag_h = max(16, int(flag.height * 0.6))
                     flag_img = pygame.transform.scale(flag_original, (flag_w, flag_h))
 
-                    # pole x: left of the castle in screen coords
+                    # pole x: left of the castle in screen coords (flag is to left)
                     pole_x_screen = (castle.x - camera_x) - flag_w - 10
 
                     # start below the screen, end at 1/3 of the screen height
@@ -398,7 +550,7 @@ def speel(SCREEN, pause_func=None):
 
                     SCREEN.blit(flag_img, (pole_x_screen, int(cur_y_screen)))
                 except Exception:
-                    # fallback: draw a simple rect in screen-space
+                    # fallback: draw a simple rect in screen-space plus a pole
                     pole_x_screen = (castle.x - camera_x) - flag.width - 10
                     start_y_screen = HEIGHT + flag.height + 40
                     end_y_screen = HEIGHT // 3
