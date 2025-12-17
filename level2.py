@@ -8,18 +8,15 @@ def speel(SCREEN, pause_func=None):
     BIG_FONT = pygame.font.SysFont(None, 64)
 
     # 1. AFBEELDINGEN LADEN
-    # Achtergrond
     try:
-        bg_original = pygame.image.load("assets/background.jpg")
+        bg_original = pygame.image.load("assets/BACKKKground.jpg")
         bg_img = pygame.transform.scale(bg_original, (WIDTH, HEIGHT))
     except:
-        bg_img = None # Fallback
+        bg_img = None 
 
-    # De speler (Aap)
     original_image = pygame.image.load("assets/monkey.png")
     player_img = pygame.transform.scale(original_image, (40, 50))
 
-    # De vijand (Mes)
     knife_original = pygame.image.load("assets/knifes.png")
     knife_img = pygame.transform.scale(knife_original, (50, 100))
 
@@ -39,22 +36,62 @@ def speel(SCREEN, pause_func=None):
     win = False
     enemies = []
     
-    # Level Genereren (Platforms)
+    # ==========================================
+    # LEVEL GENEREREN (VERBETERDE VERSIE)
+    # ==========================================
     platforms = [pygame.Rect(0, HEIGHT - 50, 500, 50)]
     current_x = 500
+    
+    # We onthouden de hoogte van het laatste platform om de volgende te berekenen
+    last_platform_y = HEIGHT - 50 
+
     while current_x < 3000:
-        gap = random.randint(50, 150)
+        # 1. Bepaal afstand (Gap)
+        # Iets kleiner dan 150 om veilig te zijn
+        gap = random.randint(50, 130) 
+        
+        # 2. Bepaal breedte
         w = random.randint(100, 300)
-        h = random.randint(HEIGHT - 200, HEIGHT - 50)
+
+        # 3. Bepaal hoogte (Relatief aan vorig platform)
+        # Standaard mag je ~100px omhoog springen
+        max_jump_up = 100 
+
+        # MAAR: Als de sprong ver is, mag hij minder hoog zijn (natuurkunde)
+        if gap > 90:
+            max_jump_up = 60  
+        if gap > 110:
+            max_jump_up = 20 # Bijna vlak blijven bij verre sprong
+
+        # Bereken de limieten voor de Y-positie
+        # (Let op: min_y is het hoogste punt op het scherm, want Y=0 is boven)
+        min_y = last_platform_y - max_jump_up  
+        max_y = last_platform_y + 100          # Naar beneden springen is makkelijk
+
+        # Zorg dat platforms niet buiten beeld gaan (Plafond & Vloer)
+        if min_y < 100: min_y = 100             # Niet te hoog (plafond)
+        if max_y > HEIGHT - 50: max_y = HEIGHT - 50 # Niet te laag (vloer)
+        
+        # Veiligheidscheck: als min per ongeluk groter is dan max, draai ze om
+        if min_y > max_y:
+            min_y = max_y - 20
+
+        # Kies de definitieve hoogte
+        h = random.randint(min_y, max_y)
+
+        # Toevoegen en updaten
         current_x += gap
         platforms.append(pygame.Rect(current_x, h, w, 20))
         current_x += w
+        last_platform_y = h  # Onthoud deze hoogte voor de volgende ronde!
     
+    # Kasteel plaatsen
     castle_x = current_x + 100
     platforms.append(pygame.Rect(castle_x - 100, HEIGHT - 50, 500, 50))
     castle = pygame.Rect(castle_x, HEIGHT - 200, 120, 150)
     flag = pygame.Rect(castle_x - 50, HEIGHT - 250, 10, 200)
 
+    # Fysica
     speed = 5
     jump_power = -15
     gravity = 1
@@ -66,9 +103,7 @@ def speel(SCREEN, pause_func=None):
     while running:
         CLOCK.tick(60)
 
-        # 1. ACHTERGROND TEKENEN (vroeger SKY)
         if bg_img:
-            # We tekenen de achtergrond op positie 0,0 (hij staat stil)
             SCREEN.blit(bg_img, (0, 0))
         else:
             SCREEN.fill(SKY)
@@ -78,19 +113,16 @@ def speel(SCREEN, pause_func=None):
                 return "QUIT"
             
             if event.type == pygame.KEYDOWN:
-                # When ESC is pressed, if we have a pause function provided delegate to it.
                 if event.key == pygame.K_ESCAPE:
                     if pause_func and not (game_over or win):
                         res = pause_func(SCREEN)
                         if res == "MENU":
                             return "MENU"
-                        # if RESUME, continue
                     else:
                         return "MENU"
                 if event.key == pygame.K_UP and on_ground and not game_over and not win:
                     player_vel_y = jump_power
                 
-                # Restart (R or Enter)
                 if event.key == pygame.K_r and (game_over or win):
                     return speel(SCREEN, pause_func)
                 if event.key == pygame.K_RETURN and game_over:
@@ -99,7 +131,6 @@ def speel(SCREEN, pause_func=None):
         keys = pygame.key.get_pressed()
 
         if not win and not game_over:
-            # Speler Beweging
             if keys[pygame.K_LEFT]: player.x -= speed
             if keys[pygame.K_RIGHT]: player.x += speed
             player_vel_y += gravity
@@ -116,11 +147,11 @@ def speel(SCREEN, pause_func=None):
             if player.y > HEIGHT: game_over = True
             if player.colliderect(castle): win = True
 
-            # Messen Logic (5-20 stuks)
+            # Messen Logic
             if len(enemies) < 17:
                 if len(enemies) < 4 or random.randint(0, 100) < 2:
                     spawn_x = random.randint(int(camera_x), int(camera_x + WIDTH))
-                    enemies.append(pygame.Rect(spawn_x, -100, 50, 100))
+                    enemies.append(pygame.Rect(spawn_x, -100, 40, 80))
             
             for enemy in enemies[:]:
                 enemy.y += 5
@@ -132,37 +163,27 @@ def speel(SCREEN, pause_func=None):
             if target < 0: target = 0
             camera_x = target
 
-            # ====================
-            # TEKENEN OBJECTEN
-            # ====================
-            
-            # Platforms tekenen
+            # Tekenen
             for plat in platforms:
                 pygame.draw.rect(SCREEN, GROUND_COLOR, (plat.x - camera_x, plat.y, plat.width, plat.height))
             
-            # Kasteel en vlag
             pygame.draw.rect(SCREEN, GRAY, (flag.x - camera_x, flag.y, flag.width, flag.height))
             pygame.draw.rect(SCREEN, RED, (castle.x - camera_x, castle.y, castle.width, castle.height))
             
-            # Vijanden (Messen)
             for e in enemies:
                 SCREEN.blit(knife_img, (e.x - camera_x, e.y))
             
-            # Speler
             SCREEN.blit(player_img, (player.x - camera_x, player.y))
-            
-            SCREEN.blit(FONT.render("Level 2 - Survival (Pas op voor messen!)", True, BLACK), (20, 20))
+            SCREEN.blit(FONT.render("Level 2 - Survival", True, BLACK), (20, 20))
 
         elif game_over:
             SCREEN.fill(BLACK)
             SCREEN.blit(BIG_FONT.render("YOU DIED", True, RED), (250, 200))
             SCREEN.blit(FONT.render("Press Enter to restart", True, SKY), (220, 260))
         else:
-            # GEWONNEN: Hier tekenen we de achtergrond opnieuw over zwart heen
             if bg_img: SCREEN.blit(bg_img, (0, 0))
             else: SCREEN.fill(SKY)
-            
             SCREEN.blit(BIG_FONT.render("GEWONNEN!", True, BLACK), (250, 200))
-            SCREEN.blit(FONT.render("Druk R voor retry, ESC voor menu", True, BLACK), (220, 260))
+            SCREEN.blit(FONT.render("Druk R voor retry", True, BLACK), (220, 260))
 
         pygame.display.update()
