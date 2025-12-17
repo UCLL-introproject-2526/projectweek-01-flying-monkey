@@ -25,10 +25,44 @@ def speel(SCREEN, pause_func=None):
 
     try:
         monkey_original = pygame.image.load("assets/monkey.png").convert_alpha()
-        # make monkey a bit wider
-        player_img = pygame.transform.scale(monkey_original, (60, 60))
+        # make monkey a bit wider (idle)
+        player_idle_img = pygame.transform.scale(monkey_original, (60, 60))
+        # try to load walking frames (left-arm-up / right-arm-up)
+        try:
+            monkey_lau = pygame.image.load("assets/monkey_lau.png").convert_alpha()
+        except Exception:
+            monkey_lau = None
+        try:
+            monkey_rau = pygame.image.load("assets/monkey_rau.png").convert_alpha()
+        except Exception:
+            monkey_rau = None
+        # scale frames if available
+        player_walk_frames_right = []
+        player_walk_frames_left = []
+        if monkey_rau is not None and monkey_lau is not None:
+            f0 = pygame.transform.scale(monkey_rau, (60, 60))
+            f1 = pygame.transform.scale(monkey_lau, (60, 60))
+            player_walk_frames_right = [f0, f1]
+            # left-facing frames are flipped
+            player_walk_frames_left = [pygame.transform.flip(f, True, False) for f in player_walk_frames_right]
+        # create left-facing idle frame
+        try:
+            player_idle_left = pygame.transform.flip(player_idle_img, True, False)
+        except Exception:
+            player_idle_left = None
+        # jumping frame (arms up) if available
+        try:
+            monkey_jumping = pygame.image.load("assets/monkey_jumping.png").convert_alpha()
+            player_jump_right = pygame.transform.scale(monkey_jumping, (60, 60))
+            player_jump_left = pygame.transform.flip(player_jump_right, True, False)
+        except Exception:
+            player_jump_right = None
+            player_jump_left = None
+        # keep backward-compatible name
+        player_img = player_idle_img
     except:
         player_img = None
+        player_idle_img = None
         print("Kan monkey.png niet vinden.")
 
     # Castle and flag images
@@ -121,6 +155,12 @@ def speel(SCREEN, pause_func=None):
     camera_x = 0
     win = False
     game_over = False
+    # player facing direction: 1 == right, -1 == left
+    player_dir = 1
+    # walking animation state (ms)
+    walk_anim_time = 0
+    walk_anim_interval = 200
+    walk_frame = 0
     # flag animation state (plays once when reaching the castle)
     flag_animating = False
     flag_anim_time = 0.0
@@ -212,11 +252,14 @@ def speel(SCREEN, pause_func=None):
 
     def move_player_func(keys):
         nonlocal on_ground, player_vel_y, camera_x
+        nonlocal player_dir
         dx = 0
         if keys[pygame.K_LEFT]:
             dx = -speed
+            player_dir = -1
         if keys[pygame.K_RIGHT]:
             dx = speed
+            player_dir = 1
         player.x += dx
         player_vel_y += gravity
         player.y += player_vel_y
@@ -454,6 +497,21 @@ def speel(SCREEN, pause_func=None):
             check_enemy_collisions_func()
             check_coin_collisions_func()
 
+            # update walking animation timer
+            try:
+                dt_ms = CLOCK.get_time()
+                moving_h = (keys[pygame.K_LEFT] or keys[pygame.K_RIGHT]) and on_ground
+                if moving_h:
+                    walk_anim_time += dt_ms
+                    if walk_anim_time >= walk_anim_interval:
+                        walk_frame = 1 - walk_frame
+                        walk_anim_time -= walk_anim_interval
+                else:
+                    walk_frame = 0
+                    walk_anim_time = 0
+            except Exception:
+                pass
+
             # Only set win when player actually reaches the castle area (avoid false positives)
             # Require collision, horizontal proximity and that player is standing at castle level
             if (player.colliderect(castle)
@@ -486,13 +544,40 @@ def speel(SCREEN, pause_func=None):
             draw_world_func()
             draw_enemies_func()
             
-            if player_img:
+            # choose player image based on walking animation and direction
+            img_to_draw = None
+            try:
+                moving_h = (keys[pygame.K_LEFT] or keys[pygame.K_RIGHT]) and on_ground
+                # jumping takes precedence
+                if not on_ground:
+                    if player_dir == 1 and 'player_jump_right' in locals() and player_jump_right is not None:
+                        img_to_draw = player_jump_right
+                    elif player_dir == -1 and 'player_jump_left' in locals() and player_jump_left is not None:
+                        img_to_draw = player_jump_left
+                    else:
+                        if player_dir == -1 and 'player_idle_left' in locals() and player_idle_left is not None:
+                            img_to_draw = player_idle_left
+                        else:
+                            img_to_draw = player_idle_img if 'player_idle_img' in locals() else player_img
+                elif moving_h and player_dir == 1 and player_walk_frames_right:
+                    img_to_draw = player_walk_frames_right[walk_frame]
+                elif moving_h and player_dir == -1 and player_walk_frames_left:
+                    img_to_draw = player_walk_frames_left[walk_frame]
+                else:
+                    if player_dir == -1 and 'player_idle_left' in locals() and player_idle_left is not None:
+                        img_to_draw = player_idle_left
+                    else:
+                        img_to_draw = player_idle_img if 'player_idle_img' in locals() else player_img
+            except Exception:
+                img_to_draw = player_img
+
+            if img_to_draw:
                 try:
-                    img_h = player_img.get_height()
+                    img_h = img_to_draw.get_height()
                     blit_y = player.bottom - img_h
-                    SCREEN.blit(player_img, (player.x - camera_x, blit_y))
+                    SCREEN.blit(img_to_draw, (player.x - camera_x, blit_y))
                 except Exception:
-                    SCREEN.blit(player_img, (player.x - camera_x, player.y))
+                    SCREEN.blit(img_to_draw, (player.x - camera_x, player.y))
             else:
                 pygame.draw.rect(SCREEN, (150, 100, 60), (player.x - camera_x, player.y, player.width, player.height))
 
@@ -522,13 +607,33 @@ def speel(SCREEN, pause_func=None):
                 # Draw the normal world (so castle stays where it is)
                 draw_world_func()
                 draw_enemies_func()
-                if player_img:
+                # choose player image based on walking animation and direction
+                img_to_draw = None
+                try:
+                    moving_h = ((keys[pygame.K_LEFT] or keys[pygame.K_RIGHT]) and on_ground)
+                    if not on_ground:
+                        if player_dir == 1 and 'player_jump_right' in locals() and player_jump_right is not None:
+                            img_to_draw = player_jump_right
+                        elif player_dir == -1 and 'player_jump_left' in locals() and player_jump_left is not None:
+                            img_to_draw = player_jump_left
+                        else:
+                            img_to_draw = player_idle_img if 'player_idle_img' in locals() else player_img
+                    elif moving_h and player_dir == 1 and player_walk_frames_right:
+                        img_to_draw = player_walk_frames_right[walk_frame]
+                    elif moving_h and player_dir == -1 and player_walk_frames_left:
+                        img_to_draw = player_walk_frames_left[walk_frame]
+                    else:
+                        img_to_draw = player_idle_img if 'player_idle_img' in locals() else player_img
+                except Exception:
+                    img_to_draw = player_img
+
+                if img_to_draw:
                     try:
-                        img_h = player_img.get_height()
+                        img_h = img_to_draw.get_height()
                         blit_y = player.bottom - img_h
-                        SCREEN.blit(player_img, (player.x - camera_x, blit_y))
+                        SCREEN.blit(img_to_draw, (player.x - camera_x, blit_y))
                     except Exception:
-                        SCREEN.blit(player_img, (player.x - camera_x, player.y))
+                        SCREEN.blit(img_to_draw, (player.x - camera_x, player.y))
                 else:
                     pygame.draw.rect(SCREEN, (150, 100, 60), (player.x - camera_x, player.y, player.width, player.height))
                 SCREEN.blit(FONT.render(f"Score: {score}", True, BLACK), (20, 20))
