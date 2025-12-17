@@ -23,7 +23,7 @@ def speel(SCREEN, pause_func=None):
         print("Kan background.jpg niet vinden.")
 
     try:
-        monkey_original = pygame.image.load("assets/ehcte.png").convert_alpha()
+        monkey_original = pygame.image.load("assets/monkey.png").convert_alpha()
         player_img = pygame.transform.scale(monkey_original, (50, 60))
     except:
         player_img = None
