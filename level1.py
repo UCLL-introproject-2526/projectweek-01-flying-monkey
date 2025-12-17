@@ -91,6 +91,12 @@ def speel(SCREEN, pause_func=None):
     except Exception:
         coin_original = None
 
+    # wood image for small platforms (optional)
+    try:
+        wood_original = pygame.image.load("assets/wood.jpg").convert_alpha()
+    except Exception:
+        wood_original = None
+
     # Grond/Platform afbeelding (prefer new ground.jpg, fallback to grond.png)
     grond_img_loaded = False
     try:
@@ -170,7 +176,7 @@ def speel(SCREEN, pause_func=None):
     
     # make the main ground a bit taller (was 50)
     platforms = [
-        pygame.Rect(0, HEIGHT - 70, 2000, 70),
+        pygame.Rect(0, HEIGHT - 70, 4000, 70),
         pygame.Rect(300, HEIGHT - 150, 120, 20),
         pygame.Rect(520, HEIGHT - 220, 120, 20),
         pygame.Rect(800, HEIGHT - 170, 120, 20),
@@ -267,9 +273,18 @@ def speel(SCREEN, pause_func=None):
         on_ground = False
         for plat in platforms:
             if player.colliderect(plat) and player_vel_y >= 0:
-                player.bottom = plat.top
-                player_vel_y = 0
-                on_ground = True
+                # only land if player's feet crossed the platform top this frame
+                try:
+                    prev_bottom = player.y - player_vel_y + player.height
+                    if prev_bottom <= plat.top and player.bottom >= plat.top:
+                        player.bottom = plat.top
+                        player_vel_y = 0
+                        on_ground = True
+                except Exception:
+                    # fallback to previous behavior
+                    player.bottom = plat.top
+                    player_vel_y = 0
+                    on_ground = True
 
     def move_enemies_func():
         for e in enemies:
@@ -310,27 +325,95 @@ def speel(SCREEN, pause_func=None):
             # We definiëren de rechthoek die we gaan tekenen (rekening houdend met camera)
             draw_rect = (plat.x - camera_x, plat.y, plat.width, plat.height)
 
-            # 1. Teken de binnenkant: gebruik ground image indien beschikbaar, anders kleur
-            if grond_img_loaded and grond_original is not None:
-                try:
-                    # scale the ground image to the platform width
-                    img = pygame.transform.scale(grond_original, (plat.width, plat.height))
-                    SCREEN.blit(img, (plat.x - camera_x, plat.y))
-
-                    # draw a small semi-transparent shadow at the top edge of the ground
+            # 1. Teken de binnenkant: gebruik wood blocks for small platforms, otherwise ground image
+            try:
+                is_main_ground = (plat.x == 0 and plat.width >= 1000)
+                if not is_main_ground and wood_original is not None:
+                    # tile wood blocks across the platform width
+                    orig_w, orig_h = wood_original.get_size()
+                    if orig_h == 0:
+                        raise Exception("invalid wood image")
+                    # scale block height to platform height
+                    tile_h = plat.height
+                    tile_w = int(orig_w * (tile_h / orig_h)) if orig_w and orig_h else tile_h
+                    if tile_w <= 0:
+                        tile_w = tile_h
+                    tile_img = pygame.transform.scale(wood_original, (tile_w, tile_h))
+                    # loop and blit across platform
+                    x = 0
+                    while x < plat.width:
+                        blit_x = plat.x + x - camera_x
+                        SCREEN.blit(tile_img, (blit_x, plat.y))
+                        x += tile_w
+                    # draw a small gradient shadow on top of the wood platform
                     try:
-                        shadow_h = min(24, int(plat.height * 0.35))
-                        if shadow_h > 0:
-                            shadow_surf = pygame.Surface((plat.width, shadow_h), pygame.SRCALPHA)
-                            shadow_surf.fill((0, 0, 0, 90))
-                            # place the shadow slightly above the ground top so it blends with background
-                            shadow_y = max(0, plat.y - shadow_h + 4)
-                            SCREEN.blit(shadow_surf, (plat.x - camera_x, shadow_y))
+                        shadow_h = max(4, int(plat.height / 3))
+                        shadow_surf = pygame.Surface((plat.width, shadow_h), pygame.SRCALPHA)
+                        max_alpha = 100
+                        for i in range(shadow_h):
+                            alpha = int(max_alpha * ((i + 1) / shadow_h))
+                            pygame.draw.rect(shadow_surf, (0, 0, 0, alpha), (0, i, plat.width, 1))
+                        shadow_y = plat.y - shadow_h + 2
+                        SCREEN.blit(shadow_surf, (plat.x - camera_x, shadow_y))
                     except Exception:
                         pass
-                except Exception:
+                elif grond_img_loaded and grond_original is not None:
+                    try:
+                        # Tile the ground image horizontally to avoid stretching.
+                        orig_w, orig_h = grond_original.get_size()
+                        tile_h = plat.height
+                        tile_w = int(orig_w * (tile_h / orig_h)) if orig_h else tile_h
+                        if tile_w <= 0:
+                            tile_w = tile_h
+                        tile_img = pygame.transform.scale(grond_original, (tile_w, tile_h))
+
+                        # Determine area to tile: from platform left until the castle,
+                        # then place one additional tile after the castle to ensure coverage.
+                        try:
+                            castle_rel_x = max(0, castle.x - plat.x)
+                            castle_w = castle.width
+                        except Exception:
+                            castle_rel_x = plat.width
+                            castle_w = tile_w
+
+                        # Tile up to castle right edge, plus one extra tile
+                        target_end = min(plat.width, castle_rel_x + castle_w + tile_w)
+
+                        x = 0
+                        while x < target_end:
+                            blit_x = plat.x + x - camera_x
+                            SCREEN.blit(tile_img, (blit_x, plat.y))
+                            x += tile_w
+
+                        # Also make sure the visible screen area is fully covered (left/right)
+                        # in case camera shows regions beyond the tiled target.
+                        screen_start = camera_x - (camera_x % tile_w) - tile_w
+                        screen_end = camera_x + WIDTH
+                        x = screen_start - plat.x
+                        while x < screen_end - plat.x:
+                            blit_x = plat.x + x - camera_x
+                            SCREEN.blit(tile_img, (blit_x, plat.y))
+                            x += tile_w
+
+                        # draw a small gradient shadow on top of the ground tiles
+                        try:
+                            shadow_h = max(4, int(plat.height / 3))
+                            shadow_surf = pygame.Surface((plat.width, shadow_h), pygame.SRCALPHA)
+                            max_alpha = 100
+                            for i in range(shadow_h):
+                                alpha = int(max_alpha * ((i + 1) / shadow_h))
+                                pygame.draw.rect(shadow_surf, (0, 0, 0, alpha), (0, i, plat.width, 1))
+                            shadow_y = plat.y - shadow_h + 2
+                            SCREEN.blit(shadow_surf, (plat.x - camera_x, shadow_y))
+                        except Exception:
+                            pass
+                    except Exception:
+                        # fallback to single scaled blit if anything goes wrong
+                        img = pygame.transform.scale(grond_original, (plat.width, plat.height))
+                        SCREEN.blit(img, (plat.x - camera_x, plat.y))
+                else:
                     pygame.draw.rect(SCREEN, GROUND, draw_rect)
-            else:
+            except Exception:
                 pygame.draw.rect(SCREEN, GROUND, draw_rect)
             
             # 2. Teken de "Gloeiende" Rode Rand
@@ -520,14 +603,16 @@ def speel(SCREEN, pause_func=None):
                 win = True
                 # play win sound (Sound preferred, fallback to music)
                 try:
-                    if win_sound:
-                        win_sound.play()
-                    else:
-                        try:
-                            if pygame.mixer.get_init():
-                                pygame.mixer.music.play()
-                        except Exception:
-                            pass
+                    sound_enabled = getattr(pygame.mixer, 'SOUND_ON', True)
+                    if sound_enabled:
+                        if win_sound:
+                            win_sound.play()
+                        else:
+                            try:
+                                if pygame.mixer.get_init():
+                                    pygame.mixer.music.play()
+                            except Exception:
+                                pass
                 except Exception:
                     pass
                 # start flag animation (plays in-world) if asset exists
