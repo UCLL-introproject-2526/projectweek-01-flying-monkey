@@ -1,7 +1,15 @@
-- add ranking system every new game (enter name) and add storage to keep ranking. only do this for an infinite level (idk how yet)
+- add ranking system every new game (enter name) and add storage to keep ranking. only do this for an infinite level (idk how yet) (optional)
 - make snakes more pixelated
 - add more platforms in level 1
 - add more coins in level 1
 - basically make level 1 longer 
+<<<<<<< HEAD
 - Be able to use the "ZQSD" or "WASD" key to move
 - Make third level (keep it for later)
+=======
+
+- Make boss level 3
+- add sound effect when enemy dies (oof roblox)
+- add main theme music 
+- add sound effect when collected coin (jew)
+>>>>>>> 70c317dff61d1677ded5e283dab12bb9c45b1ab4

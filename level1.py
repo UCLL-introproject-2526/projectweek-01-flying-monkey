@@ -2,6 +2,11 @@ import pygame
 import os
 import math
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Shortcut to assets folder
+ASSETS_DIR = os.path.join(BASE_DIR, "assets")
+
 def speel(SCREEN, pause_func=None):
     # ====================
     # INITIAL SETUP
@@ -113,6 +118,8 @@ def speel(SCREEN, pause_func=None):
     # AUDIO (win sound)
     # ====================
     win_sound = None
+    coin_sound = None
+    enemy_die_sound = None
     try:
         if not pygame.mixer.get_init():
             try:
@@ -132,6 +139,21 @@ def speel(SCREEN, pause_func=None):
             win_sound = None
     except Exception:
         win_sound = None
+
+    try:
+        if not pygame.mixer.get_init():
+            pygame.mixer.init()
+
+        coin_path = os.path.join("assets", "sounds", "coin_sound.mp3")
+        if os.path.exists(coin_path):
+            coin_sound = pygame.mixer.Sound(coin_path)
+
+        enemy_die_path = os.path.join("assets", "sounds", "roblox_oof.mp3")
+        if os.path.exists(enemy_die_path):
+            enemy_die_sound = pygame.mixer.Sound(enemy_die_path)
+
+    except Exception as e:
+        print("Sound loading error:", e)
 
     # ====================
     # KLEUREN
@@ -301,9 +323,11 @@ def speel(SCREEN, pause_func=None):
                 if player_vel_y > 0 and player.bottom < e["rect"].centery:
                     enemies.remove(e)
                     player_vel_y = -10
+                    if enemy_die_sound:
+                        enemy_die_sound.play()
                 else:
-                    # set game over instead of instantly resetting so we can show a death screen
                     game_over = True
+
 
     def check_coin_collisions_func():
         nonlocal score
@@ -311,6 +335,9 @@ def speel(SCREEN, pause_func=None):
             if player.colliderect(c):
                 coins.remove(c)
                 score += 1
+                if coin_sound:
+                    coin_sound.play()
+
 
     def draw_world_func():
         # Achtergrond (full-screen)
