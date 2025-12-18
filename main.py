@@ -22,8 +22,7 @@ def set_mouse_hand(enable: bool):
             pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_HAND if enable else pygame.SYSTEM_CURSOR_ARROW)
         except Exception:
             pass
-import level1  # We importeren je level bestanden
-import level2
+from levels import level1, level2
 
 # Setup
 pygame.init()
