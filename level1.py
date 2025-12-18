@@ -176,7 +176,7 @@ def speel(SCREEN, pause_func=None):
     
     # make the main ground a bit taller (was 50)
     platforms = [
-        pygame.Rect(0, HEIGHT - 70, 4000, 70),
+        pygame.Rect(0, HEIGHT - 70, 40000, 70),
         pygame.Rect(300, HEIGHT - 150, 120, 20),
         pygame.Rect(520, HEIGHT - 220, 120, 20),
         pygame.Rect(800, HEIGHT - 170, 120, 20),
