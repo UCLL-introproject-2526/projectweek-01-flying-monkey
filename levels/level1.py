@@ -1,5 +1,7 @@
 import pygame
 import sys
+import math
+
 # Zorg dat we shared.py kunnen vinden in de map erboven
 sys.path.append("..") 
 import shared 
@@ -12,6 +14,14 @@ def speel(SCREEN, pause_func=None):
 
     # 1. ASSETS LADEN
     ASSETS = shared.load_assets(WIDTH, HEIGHT)
+    
+    # Haal de specifieke plaatjes op
+    platform_original = ASSETS.get("platform") 
+    grond_original = ASSETS.get("ground")
+    
+    # Check of ze geladen zijn
+    grond_img_loaded = (grond_original is not None)
+    platform_img_loaded = (platform_original is not None)
 
     # KLEUREN
     SKY_BLUE = (135, 206, 235)
@@ -40,11 +50,10 @@ def speel(SCREEN, pause_func=None):
     flag_anim_progress = 0.0
 
     # ==========================================
-    # LEVEL DESIGN (SPECIFIEK VOOR LEVEL 1)
+    # LEVEL DESIGN
     # ==========================================
-    # Dit zijn de platforms uit jouw originele code
     platforms = [
-        pygame.Rect(0, HEIGHT - 70, 2000, 70),
+        pygame.Rect(0, HEIGHT - 70, 2500, 70),  # De grote vloer
         pygame.Rect(300, HEIGHT - 150, 120, 20),
         pygame.Rect(520, HEIGHT - 220, 120, 20),
         pygame.Rect(800, HEIGHT - 170, 120, 20),
@@ -52,19 +61,15 @@ def speel(SCREEN, pause_func=None):
         pygame.Rect(900, HEIGHT - 250, 100, 20),
     ]
     
-    # Kasteel en Vlag
     castle = pygame.Rect(1800, HEIGHT - 200, 120, 150)
     flag_rect = pygame.Rect(1750, HEIGHT - 250, 24, 200)
 
-    # Muntjes
     coins = [
         pygame.Rect(660, HEIGHT - 140, 20, 20),
-        pygame.Rect(910, HEIGHT - 290, 20, 20),
-        pygame.Rect(930, HEIGHT - 290, 20, 20),
+        pygame.Rect(850, HEIGHT - 330, 20, 20),
+        pygame.Rect(990, HEIGHT - 290, 20, 20),
     ]
 
-    # Vijanden Definitie (Paddenstoelen/Slangen)
-    # We slaan ze op als dictionary zodat we richting (dir) kunnen onthouden
     enemies_def = [
         {"rect": pygame.Rect(450, HEIGHT - 100, 50, 40), "dir": -1},
         {"rect": pygame.Rect(750, HEIGHT - 100, 50, 40), "dir": 1},
@@ -73,12 +78,10 @@ def speel(SCREEN, pause_func=None):
         {"rect": pygame.Rect(990, HEIGHT - 100, 50, 40), "dir": -1},
     ]
     
-    # Maak een kopie voor de live game
     enemies = []
     for e in enemies_def:
         enemies.append({"rect": e["rect"].copy(), "dir": e["dir"]})
 
-    # Functie om alles terug te zetten bij restart
     def reset_level():
         nonlocal player, player_vel_y, score, coins, enemies, win, game_over, flag_anim_progress, camera_x
         player.x = 100
@@ -89,7 +92,6 @@ def speel(SCREEN, pause_func=None):
         game_over = False
         flag_anim_progress = 0.0
         camera_x = 0
-        # Reset coins en enemies
         coins = [pygame.Rect(660, HEIGHT - 140, 20, 20), pygame.Rect(910, HEIGHT - 290, 20, 20), pygame.Rect(930, HEIGHT - 290, 20, 20)]
         enemies.clear()
         for e in enemies_def:
@@ -115,18 +117,16 @@ def speel(SCREEN, pause_func=None):
                         if pause_func(SCREEN) == "MENU": return "MENU"
                     else: return "MENU"
                 
-                # Springen
                 if event.key == pygame.K_UP and on_ground and not (win or game_over):
                     player_vel_y = jump_power
                 
-                # Restart
                 if (event.key == pygame.K_r and win) or (event.key == pygame.K_RETURN and game_over):
                     reset_level()
 
         keys = pygame.key.get_pressed()
 
         if not (win or game_over):
-            # 1. SPELER BEWEGING
+            # Beweging
             is_moving = False
             if keys[pygame.K_LEFT]:
                 player.x -= speed
@@ -137,7 +137,6 @@ def speel(SCREEN, pause_func=None):
                 direction = 1
                 is_moving = True
             
-            # Animatie timer
             if is_moving and on_ground:
                 anim_timer += dt
                 if anim_timer > 150:
@@ -159,35 +158,28 @@ def speel(SCREEN, pause_func=None):
                         player_vel_y = 0
                         on_ground = True
 
-            # 2. VIJANDEN LOGICA (Heen en weer lopen)
+            # Vijanden
             for e in enemies[:]:
-                # Bewegen
                 e["rect"].x += e["dir"] * 2
-                
-                # Omkeren bij grenzen (zoals in jouw oude code)
                 if e["rect"].x < 300: e["dir"] = 1
                 elif e["rect"].x > 1900: e["dir"] = -1
                 
-                # Botsing met Speler
                 if player.colliderect(e["rect"]):
-                    # Als speler van boven komt (op hoofd springen)
                     if player_vel_y > 0 and player.bottom < e["rect"].centery + 10:
                         enemies.remove(e)
-                        player_vel_y = -10 # Stuiter omhoog
+                        player_vel_y = -10
                         score += 50
                     else:
                         game_over = True
 
-            # 3. MUNTJES LOGICA
+            # Muntjes
             for c in coins[:]:
                 if player.colliderect(c):
                     coins.remove(c)
                     score += 10
 
-            # Dood bij vallen
             if player.y > HEIGHT: game_over = True
 
-            # Win check
             if player.colliderect(castle):
                 win = True
                 if ASSETS["win_sound"]:
@@ -196,30 +188,128 @@ def speel(SCREEN, pause_func=None):
                         pygame.mixer.music.play()
                     except: pass
 
-            # Camera update
             camera_x = player.x - WIDTH // 3
             if camera_x < 0: camera_x = 0
 
         # ================= TEKENEN =================
         
-        # 1. ALLES TEKENEN (Zolang we niet dood zijn)
         if not game_over:
-            # Platforms
+            
+            # --- PLATFORMS VISUALS (CORRECTE TILING) ---
             for plat in platforms:
-                if ASSETS["ground"]:
-                    img = pygame.transform.scale(ASSETS["ground"], (plat.width, plat.height))
-                    SCREEN.blit(img, (plat.x - camera_x, plat.y))
+                draw_rect = (plat.x - camera_x, plat.y, plat.width, plat.height)
+                is_main_ground = (plat.x == 0 and plat.width >= 1000)
+
+                # 1. ZWEVENDE PLATFORMEN (TILING MET platform.jpg)
+                if not is_main_ground and platform_img_loaded:
+                    try:
+                        # Bereken dimensies
+                        orig_w, orig_h = platform_original.get_size()
+                        tile_h = plat.height
+                        # Behoud aspect ratio (verhouding) zodat hij niet uitrekt
+                        tile_w = int(orig_w * (tile_h / orig_h)) if orig_h else tile_h
+                        if tile_w <= 0: tile_w = 40
+
+                        # Maak het kleine tegeltje
+                        tile_img = pygame.transform.scale(platform_original, (tile_w, tile_h))
+
+                        # Maak een tijdelijke surface precies ter grootte van het platform
+                        # Dit zorgt ervoor dat plaatjes die over de rand gaan netjes worden afgesneden
+                        plat_surface = pygame.Surface((plat.width, plat.height), pygame.SRCALPHA)
+                        
+                        # Vul de surface met tegeltjes
+                        current_x = 0
+                        while current_x < plat.width:
+                            plat_surface.blit(tile_img, (current_x, 0))
+                            current_x += tile_w
+
+                        # Voeg schaduw toe aan de surface
+                        shadow_h = max(4, int(plat.height / 3))
+                        shadow_surf = pygame.Surface((plat.width, shadow_h), pygame.SRCALPHA)
+                        for i in range(shadow_h):
+                            alpha = int(100 * ((i + 1) / shadow_h))
+                            pygame.draw.rect(shadow_surf, (0, 0, 0, alpha), (0, i, plat.width, 1))
+                        plat_surface.blit(shadow_surf, (0, plat.height - shadow_h)) # Schaduw onderaan of randje
+                        
+                        # Teken het complete platform op het scherm
+                        SCREEN.blit(plat_surface, (plat.x - camera_x, plat.y))
+
+                    except Exception as e:
+                        # Fallback
+                        pygame.draw.rect(SCREEN, GROUND_COLOR, draw_rect)
+
+                # 2. DE GROND (Level vloer) - OOK TILING
+                elif is_main_ground and grond_img_loaded:
+                    try:
+                        orig_w, orig_h = grond_original.get_size()
+                        tile_h = plat.height
+                        tile_w = int(orig_w * (tile_h / orig_h)) if orig_h else tile_h
+                        if tile_w <= 0: tile_w = 64 
+                        
+                        tile_img = pygame.transform.scale(grond_original, (tile_w, tile_h))
+
+                        # Optimalisatie: teken alleen wat in beeld is direct op scherm
+                        # (Grond is te groot voor een tijdelijke Surface van 2500px elke frame)
+                        start_x = max(0, camera_x - plat.x)
+                        end_x = min(plat.width, start_x + WIDTH + tile_w)
+                        
+                        # Zorg dat we op een veelvoud van tile_w beginnen voor naadloze aansluiting
+                        offset = start_x % tile_w
+                        draw_cursor = start_x - offset
+
+                        while draw_cursor < end_x:
+                            blit_x = plat.x + draw_cursor - camera_x
+                            SCREEN.blit(tile_img, (blit_x, plat.y))
+                            draw_cursor += tile_w
+
+                        # Schaduwrandje
+                        shadow_h = max(4, int(plat.height / 3))
+                        shadow_surf = pygame.Surface((plat.width, shadow_h), pygame.SRCALPHA)
+                        for i in range(shadow_h):
+                            alpha = int(100 * ((i + 1) / shadow_h))
+                            pygame.draw.rect(shadow_surf, (0, 0, 0, alpha), (0, i, plat.width, 1))
+                        SCREEN.blit(shadow_surf, (plat.x - camera_x, plat.y))
+
+                    except Exception:
+                        pygame.draw.rect(SCREEN, GROUND_COLOR, draw_rect)
+                
+                # 3. FALLBACK
                 else:
-                    pygame.draw.rect(SCREEN, GROUND_COLOR, (plat.x - camera_x, plat.y, plat.width, plat.height))
+                    pygame.draw.rect(SCREEN, GROUND_COLOR, draw_rect)
+            # --- EINDE PLATFORMS VISUALS ---
+
 
             # Kasteel & Vlag
             if win: flag_anim_progress = min(flag_anim_progress + 0.01, 1.0)
             shared.draw_castle_system(SCREEN, ASSETS, castle, flag_rect, camera_x, win, flag_anim_progress, HEIGHT)
 
-            # Muntjes
+            # Muntjes Animatie (Originele kwaliteit, niet uitvergroot)
             for c in coins:
-                if ASSETS["coin"]: SCREEN.blit(ASSETS["coin"], (c.x - camera_x, c.y))
-                else: pygame.draw.rect(SCREEN, YELLOW, (c.x - camera_x, c.y, c.width, c.height))
+                if ASSETS["coin"]:
+                    # 1. Animatie (op en neer zweven)
+                    t = pygame.time.get_ticks() / 1000.0
+                    freq = 0.7
+                    amp = 5
+                    bob = math.sin(t * 2 * math.pi * freq) * amp
+                    
+                    # 2. Gebruik de ORIGINELE afbeelding (geen scale/resize)
+                    img = ASSETS["coin"]
+                    
+                    
+                    img_w = img.get_width()
+                    img_h = img.get_height()
+                    
+                    center_x = (c.x - camera_x) + (c.width // 2)
+                    center_y = c.y + (c.height // 2)
+                    
+                    draw_x = center_x - (img_w // 2)
+                    draw_y = center_y - (img_h // 2) + bob
+                    
+                    SCREEN.blit(img, (draw_x, draw_y))
+                else:
+                    # Fallback
+                    pygame.draw.rect(SCREEN, YELLOW, (c.x - camera_x, c.y, c.width, c.height))
+
 
             # Vijanden
             for e in enemies:
@@ -238,19 +328,14 @@ def speel(SCREEN, pause_func=None):
             score_text = FONT.render(f"Score: {score}", True, BLACK)
             SCREEN.blit(score_text, (20, 20))
             
-            # Win Scherm overlay (als je gewonnen hebt blijven we de wereld zien)
             if win and flag_anim_progress >= 1.0:
                 SCREEN.blit(BIG_FONT.render("LEVEL GEHAALD!", True, YELLOW), (WIDTH//2 - 180, HEIGHT//2))
                 SCREEN.blit(FONT.render("Druk op R voor menu/replay", True, BLACK), (WIDTH//2 - 140, HEIGHT//2 + 50))
 
-        # 2. GAME OVER SCHERM (Zwart scherm zoals origineel)
-        else: # if game_over == True
-            SCREEN.fill(BLACK) # Maak alles zwart
-            
-            # Tekst centreren
+        else: 
+            SCREEN.fill(BLACK)
             text1 = BIG_FONT.render("YOU DIED", True, RED)
-            text2 = FONT.render("Press Enter to restart", True, (135, 206, 235)) # Sky Blue
-            
+            text2 = FONT.render("Press Enter to restart", True, (135, 206, 235))
             SCREEN.blit(text1, (WIDTH//2 - text1.get_width()//2, HEIGHT//2 - 30))
             SCREEN.blit(text2, (WIDTH//2 - text2.get_width()//2, HEIGHT//2 + 30))
 

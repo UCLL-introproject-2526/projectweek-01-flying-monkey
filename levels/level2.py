@@ -147,7 +147,7 @@ def speel(SCREEN, pause_func=None):
                     enemies.append(pygame.Rect(spawn_x, -100, 30, 80)) 
             
             for enemy in enemies[:]:
-                enemy.y += 7
+                enemy.y += 6.5
                 if player.colliderect(enemy): game_over = True
                 if enemy.y > HEIGHT: enemies.remove(enemy)
 

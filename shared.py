@@ -63,7 +63,7 @@ def load_assets(WIDTH, HEIGHT):
         assets["enemy"] = None
 
     try: 
-        coin = pygame.image.load("assets/coin.png").convert_alpha()
+        coin = pygame.image.load("assets/banana.png").convert_alpha()
         assets["coin"] = pygame.transform.scale(coin, (30, 30)) # Iets groter geschaald
     except: 
         assets["coin"] = None
@@ -85,6 +85,9 @@ def load_assets(WIDTH, HEIGHT):
     except: 
         try: assets["ground"] = pygame.image.load("assets/grond.png").convert_alpha()
         except: assets["ground"] = None
+
+    try: assets["platform"] = pygame.image.load("assets/platform.jpg").convert_alpha()
+    except: assets["platform"] = None
 
     # --- GELUID ---
     pygame.mixer.init()
