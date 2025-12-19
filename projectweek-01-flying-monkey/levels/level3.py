@@ -11,6 +11,20 @@ def speel(screen, pause_menu, assets, sfx_on):
     clock = pygame.time.Clock()
     font = pygame.font.SysFont(None, 40)
 
+
+    # ====================
+    # BOSS MUSIC
+    # ====================
+    try:
+        if sfx_on:  # (als je later music_on hebt: gebruik music_on i.p.v. sfx_on)
+            if not pygame.mixer.get_init():
+                pygame.mixer.init()
+            pygame.mixer.music.load("assets/music/Danger-bossLevel.mp3")
+            pygame.mixer.music.set_volume(0.5)
+            pygame.mixer.music.play(-1)  # loop
+    except Exception:
+        pass
+
     # Background
     bg = assets.get("bg_boss") or assets.get("bg")
 

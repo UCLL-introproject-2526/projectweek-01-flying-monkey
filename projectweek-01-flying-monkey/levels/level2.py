@@ -13,6 +13,51 @@ def speel(SCREEN, pause_func=None, assets=None, sfx_on=True):
     FONT = pygame.font.SysFont(None, 32)
     BIG_FONT = pygame.font.SysFont(None, 64)
 
+    # ====================
+    # SFX: HIT SOUND
+    # ====================
+    hit_sound = None
+    try:
+        if sfx_on:
+            if not pygame.mixer.get_init():
+                pygame.mixer.init()
+            hit_sound = pygame.mixer.Sound("assets/Sounds/hit.wav")
+            hit_sound.set_volume(0.6)
+    except Exception:
+        hit_sound = None
+    
+    #====================
+
+        # ====================
+    # SFX: SWORD WHOOSH
+    # ====================
+    whoosh_sound = None
+    WHOOSH_COOLDOWN = 700  # milliseconds
+    last_whoosh_time = 0
+
+    try:
+        if sfx_on:
+            if not pygame.mixer.get_init():
+                pygame.mixer.init()
+            whoosh_sound = pygame.mixer.Sound("assets/Sounds/whoosh.wav")
+            whoosh_sound.set_volume(0.35)
+    except Exception:
+        whoosh_sound = None
+
+
+    # ====================
+    # LEVEL 2 BACKGROUND MUSIC
+    # ====================
+    try:
+        if sfx_on:
+            if not pygame.mixer.get_init():
+                pygame.mixer.init()
+            pygame.mixer.music.load("assets/music/level2.mp3")
+            pygame.mixer.music.set_volume(0.4)
+            pygame.mixer.music.play(-1)  # loop forever
+    except Exception:
+        pass
+
     BG_IMG = assets.get("bg2") if assets.get("bg2") else assets.get("bg")
     GROUND_COLOR = (110, 180, 90)
     BLACK = (0, 0, 0)
@@ -87,7 +132,9 @@ def speel(SCREEN, pause_func=None, assets=None, sfx_on=True):
 
         pause_requested = False
         for event in pygame.event.get():
-            if event.type == pygame.QUIT: return "QUIT"
+            if event.type == pygame.QUIT:
+                pygame.mixer.music.stop()
+                return "QUIT"
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     if not game_over and not win:
@@ -98,7 +145,9 @@ def speel(SCREEN, pause_func=None, assets=None, sfx_on=True):
                 if event.key == pygame.K_RETURN and game_over:
                     return speel(SCREEN, pause_func, assets)
                 if win and castle.anim_progress >= 1.0:
-                    if event.key == pygame.K_m: return "MENU"
+                    if event.key == pygame.K_RETURN:
+                        pygame.mixer.music.stop()
+                        return "LEVEL3"
 
         keys = pygame.key.get_pressed()
 
@@ -147,12 +196,25 @@ def speel(SCREEN, pause_func=None, assets=None, sfx_on=True):
                     # Maak een FallingEnemy object aan
                     new_knife = FallingEnemy(spawn_x, -100, assets)
                     enemies.append(new_knife)
+
+                    # Play whoosh sound (limited)
+                    now = pygame.time.get_ticks()
+                    if (
+                        sfx_on
+                        and whoosh_sound
+                        and now - last_whoosh_time > WHOOSH_COOLDOWN
+                        and random.random() < 0.6  # 60% chance
+                    ):
+                        whoosh_sound.play()
+                        last_whoosh_time = now
             
             # NIEUW: VIJANDEN UPDATE
             for enemy in enemies[:]:
                 enemy.update()
                 # Check botsing
                 if player.rect.colliderect(enemy.rect):
+                    if sfx_on and hit_sound:
+                        hit_sound.play()
                     game_over = True
                 # Verwijder als uit beeld
                 if enemy.rect.y > HEIGHT:
@@ -164,6 +226,8 @@ def speel(SCREEN, pause_func=None, assets=None, sfx_on=True):
 
             camera_x = player.rect.x - WIDTH // 3
             if camera_x < 0: camera_x = 0
+  
+ 
 
         # ================= TEKENEN =================
         if not game_over:
@@ -196,13 +260,13 @@ def speel(SCREEN, pause_func=None, assets=None, sfx_on=True):
                     box_x, box_y = WIDTH//2 - box_w//2, HEIGHT//2 - box_h//2
                     pygame.draw.rect(SCREEN, GRAY_BOX, (box_x, box_y, box_w, box_h))
                     pygame.draw.rect(SCREEN, BLACK, (box_x, box_y, box_w, box_h), 3)
-                    text1 = BIG_FONT.render("YOU'VE WON!", True, YELLOW)
-                    text1_outline = BIG_FONT.render("YOU'VE WON!", True, BLACK)
+                    text1 = BIG_FONT.render("YOU WIN", True, YELLOW)
+                    text1_outline = BIG_FONT.render("YOU WIN", True, BLACK)
                     SCREEN.blit(text1_outline, (WIDTH//2 - text1.get_width()//2 + 2, box_y + 42))
                     SCREEN.blit(text1, (WIDTH//2 - text1.get_width()//2, box_y + 40))
                     text2 = FONT.render("Good Job!", True, BLACK)
                     SCREEN.blit(text2, (WIDTH//2 - text2.get_width()//2, box_y + 100))
-                    text3 = FONT.render("Press M for Main Menu", True, (50, 50, 50))
+                    text3 = FONT.render("Press ENTER for Final Level", True, (50, 50, 50))
                     SCREEN.blit(text3, (WIDTH//2 - text3.get_width()//2, box_y + 160))
 
         else: 
