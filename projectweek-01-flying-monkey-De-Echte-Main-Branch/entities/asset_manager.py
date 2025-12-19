@@ -9,9 +9,21 @@ class AssetManager:
         self.load_all()
 
     def load_all(self):
+        self._load_image("cloud", "assets/cloud.png", (120, 80))
         # --- ACHTERGRONDEN ---
         self._load_image("bg", "assets/background.jpg", (self.width, self.height))
         self._load_image("bg2", "assets/BACKKKground.jpg", (self.width, self.height), fallback="bg")
+        # Boss level background and ground
+        self._load_image("bg_boss", "assets/background_boss.gif", (self.width, self.height))
+        self._load_image("ground_boss", "assets/cobblestone.png", None)
+        # Load and rotate lightning bolt slightly to the left
+        try:
+            img = pygame.image.load("assets/lightning_bolt.png").convert_alpha()
+            img = pygame.transform.scale(img, (30, 30))
+            img = pygame.transform.rotate(img, 10)  # Rotate 20 degrees to the left
+            self.assets["lightning_bolt"] = img
+        except:
+            self.assets["lightning_bolt"] = None
 
         # --- SPELER ---
         # Idle

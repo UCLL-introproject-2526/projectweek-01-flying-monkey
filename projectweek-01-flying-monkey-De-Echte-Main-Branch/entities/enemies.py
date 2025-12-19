@@ -1,5 +1,6 @@
 import pygame
 import random
+import math
 
 # ==========================================
 # DE BASIS KLASSE (OUDER)
@@ -118,3 +119,91 @@ class FallingEnemy(Enemy):
     def update(self):
         # Val naar beneden
         self.rect.y += self.speed_y
+
+# ==========================================
+# LEVEL 3 BOSS: CLOUD (BOSS)
+# ==========================================
+class BossEnemy(pygame.sprite.Sprite):
+    def __init__(self, x, y, width, height, asset_manager):
+        super().__init__()
+        self.am = asset_manager
+        self.rect = pygame.Rect(x, y, width, height)
+
+        # Movement
+        self.speed = 5
+        self.direction = 1
+
+        # Visual
+        self.image = self.am.get("cloud")
+
+        # Attack logic
+        self.knife_timer = 0
+        self.knife_interval = 1000
+
+        self.curtain_timer = 0
+        self.curtain_cooldown = random.randint(5000, 10000)
+        self.curtain_active = False
+
+    def update(self, dt, screen_width):
+        # Movement
+        self.rect.x += self.speed * self.direction
+        if self.rect.left <= 0 or self.rect.right >= screen_width:
+            self.direction *= -1
+
+        # Timers
+        self.knife_timer += dt
+        self.curtain_timer += dt
+
+    def draw(self, screen):
+        if self.image:
+            scale_factor = 1.7
+            new_size = (int(self.image.get_width() * scale_factor), int(self.image.get_height() * scale_factor))
+            big_cloud = pygame.transform.smoothscale(self.image, new_size)
+            cloud_rect = big_cloud.get_rect(center=self.rect.center)
+            screen.blit(big_cloud, cloud_rect.topleft)
+        else:
+            pygame.draw.rect(screen, (255, 0, 0), self.rect)
+
+    def get_lightning_spawn(self):
+        if self.image:
+            scale_factor = 1.7
+            new_size = (int(self.image.get_width() * scale_factor), int(self.image.get_height() * scale_factor))
+            big_cloud = pygame.transform.smoothscale(self.image, new_size)
+            cloud_rect = big_cloud.get_rect(center=self.rect.center)
+            # Offset the lightning spawn point slightly downward (e.g., 10 pixels)
+            offset = 10
+            return cloud_rect.centerx, cloud_rect.bottom + offset
+        return self.rect.centerx, self.rect.bottom
+
+    def handle_attacks(self, knives, ammo_speed):
+        # Normal attack
+        if not self.curtain_active and self.knife_timer >= self.knife_interval:
+            self.knife_timer = 0
+            x, y = self.get_lightning_spawn()
+            knives.append({
+                "rect": pygame.Rect(x - 5, y, 10, 20),
+                "vx": 0,
+                "vy": ammo_speed
+            })
+
+        # Curtain attack
+        if not self.curtain_active and self.curtain_timer >= self.curtain_cooldown:
+            self.curtain_active = True
+            self.curtain_timer = 0
+            self.curtain_cooldown = random.randint(5000, 10000)
+
+            x, y = self.get_lightning_spawn()
+            for i in range(10):
+                angle = -0.6 + i * (1.2 / 9)
+                vx = int(ammo_speed * math.sin(angle))
+                vy = int(ammo_speed * math.cos(angle))
+                knives.append({
+                    "rect": pygame.Rect(x - 5, y, 10, 20),
+                    "vx": vx,
+                    "vy": vy
+                })
+
+        # End curtain burst
+        if self.curtain_active and self.knife_timer >= 200:
+            self.curtain_active = False
+            self.knife_timer = 0

@@ -271,7 +271,7 @@ def main_menu():
             GAME_SURF.blit(sfx_on_label, (sfx_on_rect.centerx - sfx_on_label.get_width() // 2, sfx_on_rect.centery - sfx_on_label.get_height() // 2))
             GAME_SURF.blit(sfx_off_label, (sfx_off_rect.centerx - sfx_off_label.get_width() // 2, sfx_off_rect.centery - sfx_off_label.get_height() // 2))
         else:
-            # Centered box positions
+            # Centered box positions. 
             box_w, box_h = 700, 120
             box_gap = 60
             box_x = WIDTH // 2 - box_w // 2
